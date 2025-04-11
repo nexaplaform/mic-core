@@ -18,6 +18,15 @@
 	<name>mic-core</name>
 	<description>The core microservice parent</description>
 
+	<distributionManagement>
+		<repository>
+			<id>github</id>
+			<name>GitHub Packages</name>
+			<url>https://maven.pkg.github.com/nexaplaform/mic-core</url>
+		</repository>
+	</distributionManagement>
+
+
 	<modules>
 		<module>app-common</module>
 	</modules>
