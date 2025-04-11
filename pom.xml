@@ -24,7 +24,7 @@
 
 	<properties>
 		<java.version>21</java.version>
-		<core.parent.version>0.0.4-SNAPSHOT</core.parent.version>
+		<core.parent.version>0.0.1-SNAPSHOT</core.parent.version>
 	</properties>
 
 	<dependencyManagement>
