@@ -96,5 +96,5 @@ jobs:
             --base develop \
             --head $BRANCH_NAME
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.NEXA_PLAFORM_PACKAGE_TOKEN }}
 
