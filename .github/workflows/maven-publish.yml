@@ -35,7 +35,7 @@ jobs:
       - name: Set dynamic version based on latest tag
         id: versioning
         run: |
-          TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.1.0")
+          TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.1")
           echo "Latest tag: $TAG"
 
           MAJOR=$(echo "$TAG" | cut -d. -f1 | tr -d 'v')
