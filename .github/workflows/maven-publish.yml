@@ -37,3 +37,11 @@ jobs:
         run: mvn -B deploy -Drevision=${{ env.revision }} -s $GITHUB_WORKSPACE/settings.xml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: SonarCloud Analysis
+        run: mvn -B verify sonar:sonar \
+          -Dsonar.projectKey=nexaplaform_mic-core \
+          -Dsonar.organization=nexaplaform \
+          -Dsonar.host.url=https://sonarcloud.io \
+          -Dsonar.login=${{ secrets.SONAR_TOKEN }}
+
