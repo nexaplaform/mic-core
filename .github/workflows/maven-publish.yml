@@ -56,6 +56,21 @@ jobs:
           echo "RELEASE_VERSION=$releaseVersion" >> $GITHUB_ENV
           echo "SNAPSHOT_VERSION=$nextSnapshot" >> $GITHUB_ENV
 
+      - name: Crear settings.xml para Maven
+        run: |
+          mkdir -p ~/.m2
+          cat > ~/.m2/settings.xml <<EOF
+          <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0">
+            <servers>
+              <server>
+                <id>github</id>
+                <username>github</username>
+                <password>${{ secrets.GH_PAT }}</password>
+              </server>
+            </servers>
+          </settings>
+          EOF
+
       - name: Publicar SNAPSHOT (develop)
         if: github.ref == 'refs/heads/develop'
         run: mvn deploy -B -Drevision=${{ env.SNAPSHOT_VERSION }} -s $GITHUB_WORKSPACE/.github/settings.xml
