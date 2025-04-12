@@ -12,4 +12,20 @@ public class DomainException extends RuntimeException {
         this.code = code;
         this.messages = messages;
     }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public String getCode() {
+        return code;
+    }
+
+    public List<String> getMessages() {
+        return messages;
+    }
 }
