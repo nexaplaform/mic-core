@@ -6,7 +6,7 @@
     <parent>
         <groupId>com.nexaplatform</groupId>
         <artifactId>mic-core</artifactId>
-        <version>${core.parent.version}</version>
+        <version>${revision}</version>
     </parent>
 
     <artifactId>app-common</artifactId>
@@ -16,4 +16,5 @@
         <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
+
 </project>

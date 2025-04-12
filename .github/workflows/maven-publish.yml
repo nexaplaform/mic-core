@@ -1,0 +1,47 @@
+name: Maven Publish
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          server-id: github
+          settings-path: ${{ github.workspace }}
+
+      - name: Set version based on branch
+        id: version
+        run: |
+          if [[ "${GITHUB_REF##*/}" == "main" ]]; then
+            echo "revision=1.0.0" >> $GITHUB_ENV
+          else
+            echo "revision=1.0.0-SNAPSHOT" >> $GITHUB_ENV
+          fi
+
+      - name: Build and Deploy with Maven
+        run: mvn -B deploy -Drevision=${{ env.revision }} -s $GITHUB_WORKSPACE/settings.xml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: SonarCloud Analysis
+        run: mvn sonar:sonar \
+          -Dsonar.projectKey=nexaplaform_mic-core \
+          -Dsonar.organization=nexaplaform \
+          -Dsonar.host.url=https://sonarcloud.io \
+          -Dsonar.login=${{ secrets.SONAR_TOKEN }}
+
