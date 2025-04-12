@@ -3,8 +3,8 @@ name: Maven Publish
 on:
   push:
     branches:
-      - develop
       - main
+      - develop
 
 jobs:
   build-and-deploy:
