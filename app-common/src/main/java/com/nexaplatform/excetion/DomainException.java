@@ -4,6 +4,7 @@ import java.util.List;
 
 public class DomainException extends RuntimeException {
 
+    private String description;
     private final String code;
     private final List<String> messages;
 
