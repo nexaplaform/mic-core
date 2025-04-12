@@ -33,7 +33,7 @@ jobs:
             echo "Tags already exist. Skipping initial tag."
           fi
 
-      - name: Set dynamic version based on latest tag
+      - name: Set dynamic version based on latest tag (auto-increment if exists)
         id: versioning
         run: |
           TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.1")
@@ -47,16 +47,26 @@ jobs:
             MINOR=1
           fi
 
-          PATCH=$(git rev-list $TAG..HEAD --count)
+          PATCH=0
+          FOUND=true
+          while $FOUND; do
+            if [[ "${GITHUB_REF##*/}" == "main" ]]; then
+              VERSION="$MAJOR.$MINOR.$PATCH"
+            else
+              VERSION="$MAJOR.$MINOR.$PATCH-SNAPSHOT"
+            fi
 
-          if [[ "${GITHUB_REF##*/}" == "main" ]]; then
-            VERSION="$MAJOR.$MINOR.$PATCH"
-          else
-            VERSION="$MAJOR.$MINOR.$PATCH-SNAPSHOT"
-          fi
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+              "https://maven.pkg.github.com/nexaplaform/mic-core/com/nexaplatform/mic-core/$VERSION/")
+            if [ "$HTTP_STATUS" == "404" ]; then
+              FOUND=false
+            else
+              PATCH=$((PATCH + 1))
+            fi
+          done
 
           echo "revision=$VERSION" >> $GITHUB_ENV
-          echo "🔖 Calculated version: $VERSION"
+          echo "🔖 Final calculated version: $VERSION"
 
       - name: Set up JDK
         uses: actions/setup-java@v4
@@ -84,15 +94,13 @@ jobs:
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
 
-          # Crea una nueva rama desde main para la PR
           BRANCH_NAME=sync-develop-from-main-$(date +%s)
           git checkout -b $BRANCH_NAME
           git push origin $BRANCH_NAME
 
-          # Crea el pull request con gh CLI
           gh pr create \
-            --title "🔄 Sync develop from main - $revision" \
-            --body "Esta PR sincroniza la rama \`develop\` con los últimos cambios de \`main\`, incluyendo la versión $revision." \
+            --title "🔄 Sync develop from main - ${{ env.revision }}" \
+            --body "Esta PR sincroniza la rama \`develop\` con los últimos cambios de \`main\`, incluyendo la versión ${{ env.revision }}." \
             --base develop \
             --head $BRANCH_NAME
         env:
