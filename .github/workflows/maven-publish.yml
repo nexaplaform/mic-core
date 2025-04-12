@@ -2,7 +2,12 @@ name: Release
 
 on:
   push:
-    branches: [ "main", "develop" ]
+    branches: [ main ]
+
+permissions:
+  contents: write
+  pull-requests: write
+  packages: write
 
 jobs:
   release:
@@ -19,6 +24,9 @@ jobs:
         with:
           java-version: '21'
           distribution: 'temurin'
+
+      - name: Configurar remote con token
+        run: git remote set-url origin https://x-access-token:${{ secrets.GH_PAT }}@github.com/${{ github.repository }}.git
 
       - name: Calcular siguiente versión
         id: calc_version
@@ -51,27 +59,28 @@ jobs:
           echo "SNAPSHOT_VERSION=$nextSnapshot" >> $GITHUB_ENV
 
       - name: Publicar release ${{ env.RELEASE_VERSION }}
-        env:
-          RELEASE_VERSION: ${{ env.RELEASE_VERSION }}
         run: |
-          git tag "v${RELEASE_VERSION}" 
-          git push origin "v${RELEASE_VERSION}"
-          mvn deploy -B -Drevision=${RELEASE_VERSION}
+          mvn deploy -B -Drevision=${{ env.RELEASE_VERSION }}
 
-      - name: Actualizar a ${{ env.SNAPSHOT_VERSION }}
-        env:
-          SNAPSHOT_VERSION: ${{ env.SNAPSHOT_VERSION }}
+      - name: Crear tag de release
         run: |
-          sed -i 's/<revision>.*<\/revision>/<revision>'${SNAPSHOT_VERSION}'<\/revision>/' pom.xml
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git commit -am "chore: Bump version to ${SNAPSHOT_VERSION} [skip ci]"
+          git tag "v${{ env.RELEASE_VERSION }}"
+          git push origin "v${{ env.RELEASE_VERSION }}"
+
+      - name: Actualizar a SNAPSHOT ${{ env.SNAPSHOT_VERSION }}
+        run: |
+          sed -i 's/<revision>.*<\/revision>/<revision>${{ env.SNAPSHOT_VERSION }}<\/revision>/' pom.xml
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -am "chore: Bump version to ${{ env.SNAPSHOT_VERSION }} [skip ci]"
           git push origin main
 
       - name: Crear Pull Request a develop
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           gh pr create -B develop -H main \
-            --title "chore: Sync version ${SNAPSHOT_VERSION} to develop" \
-            --body "Actualización automática de versión a \`${SNAPSHOT_VERSION}\` tras release."
+            --title "chore: Sync version ${{ env.SNAPSHOT_VERSION }} to develop" \
+            --body "Actualización automática de versión a \`${{ env.SNAPSHOT_VERSION }}\` tras release."
