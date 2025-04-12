@@ -23,9 +23,11 @@
 	</modules>
 
 	<properties>
+		<revision>0.0.2-SNAPSHOT</revision>
 		<maven.compiler.source>21</maven.compiler.source>
 		<maven.compiler.target>21</maven.compiler.target>
-		<revision>0.0.2-SNAPSHOT</revision>
+		<sonar.organization>nexaplaform</sonar.organization>
+		<sonar.host.url>https://sonarcloud.io</sonar.host.url>
 	</properties>
 
 	<distributionManagement>
