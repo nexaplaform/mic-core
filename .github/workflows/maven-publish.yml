@@ -58,13 +58,17 @@ jobs:
 
       - name: Publicar SNAPSHOT (develop)
         if: github.ref == 'refs/heads/develop'
-        run: |
-          mvn deploy -B -Drevision=${{ env.SNAPSHOT_VERSION }}
+        run: mvn deploy -B -Drevision=${{ env.SNAPSHOT_VERSION }} -s $GITHUB_WORKSPACE/.github/settings.xml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+
 
       - name: Publicar release (main)
         if: github.ref == 'refs/heads/main'
-        run: |
-          mvn deploy -B -Drevision=${{ env.RELEASE_VERSION }}
+        run: mvn deploy -B -Drevision=${{ env.RELEASE_VERSION }} -s $GITHUB_WORKSPACE/.github/settings.xml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+
 
       - name: Crear tag de release (main)
         if: github.ref == 'refs/heads/main'
