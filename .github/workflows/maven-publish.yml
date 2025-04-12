@@ -1,107 +1,110 @@
-name: Maven Publish
+name: Release
 
 on:
   push:
-    branches:
-      - main
-      - develop
+    branches: [ "main", "develop" ]
+
+permissions:
+  contents: write
+  pull-requests: write
+  packages: write
 
 jobs:
-  build-and-deploy:
+  release:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      packages: write
-      pull-requests: write
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout código
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
 
-      - name: Fetch all tags
-        run: git fetch --tags
-
-      - name: Create initial tag if none exists
-        run: |
-          TAG_COUNT=$(git tag | wc -l)
-          if [ "$TAG_COUNT" -eq 0 ]; then
-            echo "No tags found. Creating initial tag v0.0.1"
-            git config user.name "github-actions"
-            git config user.email "github-actions@github.com"
-            git tag v0.0.1
-            git push origin v0.0.1
-          else
-            echo "Tags already exist. Skipping initial tag."
-          fi
-
-      - name: Set dynamic version based on latest tag (auto-increment if exists)
-        id: versioning
-        run: |
-          TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.1")
-          echo "Latest tag: $TAG"
-
-          MAJOR=$(echo "$TAG" | cut -d. -f1 | tr -d 'v')
-          MINOR=$(echo "$TAG" | cut -d. -f2)
-
-          if [[ -z "$MAJOR" || -z "$MINOR" ]]; then
-            MAJOR=0
-            MINOR=1
-          fi
-
-          PATCH=0
-          FOUND=true
-          while $FOUND; do
-            if [[ "${GITHUB_REF##*/}" == "main" ]]; then
-              VERSION="$MAJOR.$MINOR.$PATCH"
-            else
-              VERSION="$MAJOR.$MINOR.$PATCH-SNAPSHOT"
-            fi
-
-            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-              "https://maven.pkg.github.com/nexaplaform/mic-core/com/nexaplatform/mic-core/$VERSION/")
-            if [ "$HTTP_STATUS" == "404" ]; then
-              FOUND=false
-            else
-              PATCH=$((PATCH + 1))
-            fi
-          done
-
-          echo "revision=$VERSION" >> $GITHUB_ENV
-          echo "🔖 Final calculated version: $VERSION"
-
-      - name: Set up JDK
-        uses: actions/setup-java@v4
+      - name: Configurar Java 21
+        uses: actions/setup-java@v3
         with:
           java-version: '21'
           distribution: 'temurin'
-          server-id: github
-          settings-path: ${{ github.workspace }}
 
-      - name: Build and Deploy with Maven
-        run: mvn -B deploy -Drevision=${{ env.revision }} -s $GITHUB_WORKSPACE/settings.xml
+      - name: Configurar remote con token
+        run: git remote set-url origin https://x-access-token:${{ secrets.GH_PAT }}@github.com/${{ github.repository }}.git
+
+      - name: Crear settings.xml para Maven
+        run: |
+          mkdir -p ~/.m2
+          cat > ~/.m2/settings.xml <<EOF
+          <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0">
+            <servers>
+              <server>
+                <id>github</id>
+                <username>github</username>
+                <password>${{ secrets.GITHUB_TOKEN }}</password>
+              </server>
+            </servers>
+          </settings>
+          EOF
+
+      - name: Calcular siguiente versión
+        id: calc_version
+        run: |
+          git fetch --tags --force
+          latestTag=$(git tag --sort=-v:refname | head -n 1)
+
+          if [ -z "$latestTag" ]; then
+            releaseVersion="0.0.1"
+            nextSnapshot="0.0.2-SNAPSHOT"
+
+            if [[ "${GITHUB_REF##*/}" == "main" ]]; then
+              git config user.name "github-actions[bot]"
+              git config user.email "github-actions[bot]@users.noreply.github.com"
+              git tag "v${releaseVersion}"
+              git push origin "v${releaseVersion}"
+            fi
+          else
+            version=${latestTag#v}
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$version"
+            PATCH_RELEASE=$((PATCH + 1))
+            releaseVersion="$MAJOR.$MINOR.$PATCH_RELEASE"
+            PATCH_SNAPSHOT=$((PATCH_RELEASE + 1))
+            nextSnapshot="$MAJOR.$MINOR.$PATCH_SNAPSHOT-SNAPSHOT"
+          fi
+
+          echo "RELEASE_VERSION=$releaseVersion" >> $GITHUB_ENV
+          echo "SNAPSHOT_VERSION=$nextSnapshot" >> $GITHUB_ENV
+
+      - name: Publicar SNAPSHOT (develop)
+        if: github.ref == 'refs/heads/develop'
+        run: mvn deploy -B -Drevision=${{ env.SNAPSHOT_VERSION }} -s ~/.m2/settings.xml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: SonarCloud Analysis
-        run: mvn sonar:sonar -Dsonar.projectKey=nexaplaform_mic-core -Dsonar.organization=nexaplaform -Dsonar.host.url=https://sonarcloud.io -Dsonar.login=${{ secrets.SONAR_TOKEN }}
+      - name: Publicar release (main)
+        if: github.ref == 'refs/heads/main'
+        run: mvn deploy -B -Drevision=${{ env.RELEASE_VERSION }} -s ~/.m2/settings.xml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install GitHub CLI
-        run: sudo apt-get update && sudo apt-get install -y gh
-
-      - name: Create PR from main to develop
+      - name: Crear tag de release (main)
         if: github.ref == 'refs/heads/main'
         run: |
-          gh config set prompt disabled
-          git config user.name "github-actions"
+          git config user.name "github-actions[bot]"
           git config user.email "github-actions@github.com"
+          git tag "v${{ env.RELEASE_VERSION }}"
+          git push origin "v${{ env.RELEASE_VERSION }}"
 
-          BRANCH_NAME=sync-develop-from-main-$(date +%s)
-          git checkout -b $BRANCH_NAME
-          git push origin $BRANCH_NAME
+      - name: Actualizar a SNAPSHOT ${{ env.SNAPSHOT_VERSION }} (main)
+        if: github.ref == 'refs/heads/main'
+        run: |
+          sed -i 's/<revision>.*<\/revision>/<revision>${{ env.SNAPSHOT_VERSION }}<\/revision>/' pom.xml
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions@github.com"
+          git commit -am "chore: Bump version to ${{ env.SNAPSHOT_VERSION }} [skip ci]"
+          git push origin main
 
-          gh pr create \
-            --title "🔄 Sync develop from main - ${{ env.revision }}" \
-            --body "Esta PR sincroniza la rama \`develop\` con los últimos cambios de \`main\`, incluyendo la versión ${{ env.revision }}." \
-            --base develop \
-            --head $BRANCH_NAME
+      - name: Crear Pull Request a develop (main)
+        if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          gh pr create -B develop -H main \
+            --title "chore: Sync version ${{ env.SNAPSHOT_VERSION }} to develop" \
+            --body "Actualización automática de versión a \`${{ env.SNAPSHOT_VERSION }}\` tras release."
