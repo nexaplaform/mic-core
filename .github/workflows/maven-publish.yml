@@ -1,4 +1,5 @@
 name: Release
+
 on:
   push:
     branches: [ main ]
@@ -6,27 +7,50 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout código
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
-      - name: Configurar Java 17
+      - name: Configurar Java 21
         uses: actions/setup-java@v3
         with:
-          java-version: '17'
+          java-version: '21'
           distribution: 'temurin'
-          # ... (otras configuraciones como cache de dependencias, etc)
 
       - name: Calcular siguiente versión
         id: calc_version
-        run: |  # (Script de cálculo mostrado antes)
-          # ...obtiene LATEST_TAG, calcula $RELEASE_VERSION y $SNAPSHOT_VERSION
+        run: |
+          git fetch --tags --force
+          latestTag=$(git tag --sort=-v:refname | head -n 1)
+
+          if [ -z "$latestTag" ]; then
+            echo "⚠️ No hay tags, creando tag inicial v0.0.1"
+            releaseVersion="0.0.1"
+            nextSnapshot="0.0.2-SNAPSHOT"
+
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag "v${releaseVersion}"
+            git push origin "v${releaseVersion}"
+          else
+            echo "Último tag encontrado: $latestTag"
+            version=${latestTag#v}
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$version"
+            PATCH_RELEASE=$((PATCH + 1))
+            releaseVersion="$MAJOR.$MINOR.$PATCH_RELEASE"
+            PATCH_SNAPSHOT=$((PATCH_RELEASE + 1))
+            nextSnapshot="$MAJOR.$MINOR.$PATCH_SNAPSHOT-SNAPSHOT"
+          fi
+
+          echo "🟢 Versión release: $releaseVersion"
+          echo "🟡 Próxima SNAPSHOT: $nextSnapshot"
           echo "RELEASE_VERSION=$releaseVersion" >> $GITHUB_ENV
           echo "SNAPSHOT_VERSION=$nextSnapshot" >> $GITHUB_ENV
 
-      - name: Publicar release ${RELEASE_VERSION}
+      - name: Publicar release ${{ env.RELEASE_VERSION }}
         env:
           RELEASE_VERSION: ${{ env.RELEASE_VERSION }}
         run: |
@@ -34,7 +58,7 @@ jobs:
           git push origin "v${RELEASE_VERSION}"
           mvn deploy -B -Drevision=${RELEASE_VERSION}
 
-      - name: Actualizar a ${SNAPSHOT_VERSION}
+      - name: Actualizar a ${{ env.SNAPSHOT_VERSION }}
         env:
           SNAPSHOT_VERSION: ${{ env.SNAPSHOT_VERSION }}
         run: |
@@ -51,5 +75,3 @@ jobs:
           gh pr create -B develop -H main \
             --title "chore: Sync version ${SNAPSHOT_VERSION} to develop" \
             --body "Actualización automática de versión a \`${SNAPSHOT_VERSION}\` tras release."
-      
-
