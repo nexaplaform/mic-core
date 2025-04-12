@@ -24,7 +24,7 @@
 
 	<properties>
 		<java.version>21</java.version>
-		<revision>0.0.1-SNAPSHOT</revision>
+		<revision>0.0.2-SNAPSHOT</revision>
 	</properties>
 
 	<distributionManagement>
