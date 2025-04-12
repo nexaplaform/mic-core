@@ -70,7 +70,7 @@ jobs:
 
       - name: Crear Pull Request a develop
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh pr create -B develop -H main \
             --title "chore: Sync version ${SNAPSHOT_VERSION} to develop" \
