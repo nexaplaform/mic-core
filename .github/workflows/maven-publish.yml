@@ -35,16 +35,16 @@ jobs:
           latestTag=$(git tag --sort=-v:refname | head -n 1)
 
           if [ -z "$latestTag" ]; then
-            echo "⚠️ No hay tags, creando tag inicial v0.0.1"
             releaseVersion="0.0.1"
             nextSnapshot="0.0.2-SNAPSHOT"
 
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git tag "v${releaseVersion}"
-            git push origin "v${releaseVersion}"
+            if [[ "${GITHUB_REF##*/}" == "main" ]]; then
+              git config user.name "github-actions[bot]"
+              git config user.email "github-actions[bot]@users.noreply.github.com"
+              git tag "v${releaseVersion}"
+              git push origin "v${releaseVersion}"
+            fi
           else
-            echo "Último tag encontrado: $latestTag"
             version=${latestTag#v}
             IFS='.' read -r MAJOR MINOR PATCH <<< "$version"
             PATCH_RELEASE=$((PATCH + 1))
@@ -53,31 +53,38 @@ jobs:
             nextSnapshot="$MAJOR.$MINOR.$PATCH_SNAPSHOT-SNAPSHOT"
           fi
 
-          echo "🟢 Versión release: $releaseVersion"
-          echo "🟡 Próxima SNAPSHOT: $nextSnapshot"
           echo "RELEASE_VERSION=$releaseVersion" >> $GITHUB_ENV
           echo "SNAPSHOT_VERSION=$nextSnapshot" >> $GITHUB_ENV
 
-      - name: Publicar release ${{ env.RELEASE_VERSION }}
+      - name: Publicar SNAPSHOT (develop)
+        if: github.ref == 'refs/heads/develop'
+        run: |
+          mvn deploy -B -Drevision=${{ env.SNAPSHOT_VERSION }}
+
+      - name: Publicar release (main)
+        if: github.ref == 'refs/heads/main'
         run: |
           mvn deploy -B -Drevision=${{ env.RELEASE_VERSION }}
 
-      - name: Crear tag de release
+      - name: Crear tag de release (main)
+        if: github.ref == 'refs/heads/main'
         run: |
           git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.email "github-actions@github.com"
           git tag "v${{ env.RELEASE_VERSION }}"
           git push origin "v${{ env.RELEASE_VERSION }}"
 
-      - name: Actualizar a SNAPSHOT ${{ env.SNAPSHOT_VERSION }}
+      - name: Actualizar a SNAPSHOT ${{ env.SNAPSHOT_VERSION }} (main)
+        if: github.ref == 'refs/heads/main'
         run: |
           sed -i 's/<revision>.*<\/revision>/<revision>${{ env.SNAPSHOT_VERSION }}<\/revision>/' pom.xml
           git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.email "github-actions@github.com"
           git commit -am "chore: Bump version to ${{ env.SNAPSHOT_VERSION }} [skip ci]"
           git push origin main
 
-      - name: Crear Pull Request a develop
+      - name: Crear Pull Request a develop (main)
+        if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
