@@ -97,5 +97,3 @@ jobs:
             --head $BRANCH_NAME
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
-
-
