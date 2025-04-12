@@ -1,0 +1,74 @@
+name: Maven Publish
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch all tags
+        run: git fetch --tags
+
+      - name: Create initial tag if none exists
+        run: |
+          TAG_COUNT=$(git tag | wc -l)
+          if [ "$TAG_COUNT" -eq 0 ]; then
+            echo "No tags found. Creating initial tag v0.0.1"
+            git config user.name "github-actions"
+            git config user.email "github-actions@github.com"
+            git tag v0.0.1
+            git push origin v0.0.1
+          else
+            echo "Tags already exist. Skipping initial tag."
+          fi
+
+      - name: Set dynamic version based on latest tag
+        id: versioning
+        run: |
+          TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.1.0")
+          echo "Latest tag: $TAG"
+
+          MAJOR=$(echo "$TAG" | cut -d. -f1 | tr -d 'v')
+          MINOR=$(echo "$TAG" | cut -d. -f2)
+          
+          if [[ -z "$MAJOR" || -z "$MINOR" ]]; then
+            MAJOR=0
+            MINOR=1
+          fi
+
+          PATCH=${{ github.run_number }}
+
+          if [[ "${GITHUB_REF##*/}" == "main" ]]; then
+            VERSION="$MAJOR.$MINOR.$PATCH"
+          else
+            VERSION="$MAJOR.$MINOR.$PATCH-SNAPSHOT"
+          fi
+
+          echo "revision=$VERSION" >> $GITHUB_ENV
+          echo "🔖 Calculated version: $VERSION"
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          server-id: github
+          settings-path: ${{ github.workspace }}
+
+      - name: Build and Deploy with Maven
+        run: mvn -B deploy -Drevision=${{ env.revision }} -s $GITHUB_WORKSPACE/settings.xml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: SonarCloud Analysis
+        run: mvn sonar:sonar -Dsonar.projectKey=nexaplaform_mic-core -Dsonar.organization=nexaplaform -Dsonar.host.url=https://sonarcloud.io -Dsonar.login=${{ secrets.SONAR_TOKEN }}
