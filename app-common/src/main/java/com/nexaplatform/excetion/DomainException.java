@@ -4,11 +4,13 @@ import java.util.List;
 
 public class DomainException extends RuntimeException {
 
+    private final String otro;
     private String description;
     private final String code;
     private final List<String> messages;
 
-    public DomainException(String code, List<String> messages) {
+    public DomainException(String otro, String code, List<String> messages) {
+        this.otro = otro;
         this.code = code;
         this.messages = messages;
     }
@@ -27,5 +29,9 @@ public class DomainException extends RuntimeException {
 
     public List<String> getMessages() {
         return messages;
+    }
+
+    public String getOtro() {
+        return otro;
     }
 }
