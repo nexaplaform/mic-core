@@ -6,10 +6,11 @@ on:
 
 permissions:
   contents: write
+  pull-requests: read
   packages: write
 
 jobs:
-  publish-snapshot:
+  update-and-publish-snapshot:
     runs-on: ubuntu-latest
 
     steps:
@@ -42,25 +43,70 @@ jobs:
           </settings>
           EOF
 
-      - name: Leer versión desde pom.xml
+      - name: Leer versión actual desde pom.xml
         id: read_version
         run: |
-          REVISION=$(grep -m1 '<revision>' pom.xml | sed -E 's/.*<revision>(.*)<\/revision>.*/\1/')
-          echo "📦 Versión encontrada en pom.xml: $REVISION"
-          echo "SNAPSHOT_VERSION=$REVISION" >> $GITHUB_ENV
+          VERSION=$(grep -m1 '<revision>' pom.xml | sed -E 's/.*<revision>(.*)<\/revision>.*/\1/')
+          echo "📦 Versión encontrada en pom.xml: $VERSION"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Obtener labels del último PR mergeado (si existe)
+        id: pr_labels
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUMBER=$(gh pr list --state merged --base develop --limit 1 --json number --jq '.[0].number')
+          echo "Último PR mergeado a develop: #$PR_NUMBER"
+
+          if [ -z "$PR_NUMBER" ]; then
+            echo "No se encontró PR mergeado reciente. No se cambiará la versión."
+            echo "LABEL=none" >> $GITHUB_ENV
+            exit 0
+          fi
+
+          LABEL=$(gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name' | grep -E 'bugfix|fix|hotfix|feature' | head -n 1 || true)
+          echo "🔖 Label detectado: $LABEL"
+          echo "LABEL=$LABEL" >> $GITHUB_ENV
+
+      - name: Modificar versión si aplica según el label
+        if: env.LABEL != 'none'
+        run: |
+          VERSION="${{ env.VERSION }}"
+          LABEL="${{ env.LABEL }}"
+
+          echo "🔧 Analizando versión: $VERSION con label: $LABEL"
+
+          BASE="${VERSION%-SNAPSHOT}"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE"
+
+          if [[ "$LABEL" =~ ^(bugfix|fix|hotfix)$ ]]; then
+            PATCH=$((PATCH + 1))
+          elif [[ "$LABEL" == "feature" ]]; then
+            MINOR=$((MINOR + 1))
+          fi
+
+          NEW_VERSION="$MAJOR.$MINOR.$PATCH-SNAPSHOT"
+          echo "✨ Nueva versión generada: $NEW_VERSION"
+          echo "SNAPSHOT_VERSION=$NEW_VERSION" >> $GITHUB_ENV
+
+          sed -i 's/<revision>.*<\/revision>/<revision>'$NEW_VERSION'<\/revision>/' pom.xml
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions@github.com"
+          git commit -am "chore: bump version to $NEW_VERSION [auto]" || echo "No hubo cambios"
+          git push origin develop
 
       - name: Verificar si ya existe una release publicada
         id: check_release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          SNAPSHOT_VERSION="${{ env.SNAPSHOT_VERSION }}"
-          RELEASE_VERSION="${SNAPSHOT_VERSION%-SNAPSHOT}"
+          VERSION="${{ env.SNAPSHOT_VERSION || env.VERSION }}"
+          RELEASE_VERSION="${VERSION%-SNAPSHOT}"
 
-          echo "🔍 Verificando si existe una release para la versión: $RELEASE_VERSION..."
+          echo "🔍 Verificando si existe una release para: $RELEASE_VERSION"
 
           if gh release view "v$RELEASE_VERSION" --json tagName >/dev/null 2>&1; then
-            echo "⚠️ Ya existe una release publicada con la versión $RELEASE_VERSION"
             echo "::error ::❌ Publicación cancelada: ya existe la release v$RELEASE_VERSION"
             exit 1
           else
@@ -68,6 +114,9 @@ jobs:
           fi
 
       - name: Publicar SNAPSHOT
-        run: mvn deploy -B -Drevision=${{ env.SNAPSHOT_VERSION }} -s ~/.m2/settings.xml
+        run: |
+          VERSION="${{ env.SNAPSHOT_VERSION || env.VERSION }}"
+          echo "🚀 Publicando SNAPSHOT: $VERSION"
+          mvn deploy -B -Drevision=$VERSION -s ~/.m2/settings.xml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
