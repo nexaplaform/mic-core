@@ -2,7 +2,7 @@ name: Preview SNAPSHOT version
 
 on:
   pull_request:
-    branches: [ "develop" ]
+    branches: [ "main", "develop" ]
     types: [opened, edited, labeled, unlabeled, synchronize]
 
 permissions:
