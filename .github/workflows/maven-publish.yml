@@ -6,7 +6,7 @@ on:
     types: [opened, edited, labeled, unlabeled, synchronize]
 
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
 
 jobs:
@@ -16,6 +16,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.ref }}
 
       - name: Leer versión actual desde pom.xml
         id: read_version
@@ -40,16 +43,31 @@ jobs:
             PATCH=$((PATCH + 1))
           elif [[ "$LABEL" == "feature" ]]; then
             MINOR=$((MINOR + 1))
+          else
+            echo "🔁 Ninguna label especial detectada, no se modificará el pom.xml"
+            exit 0
           fi
 
           NEXT_VERSION="$MAJOR.$MINOR.$PATCH-SNAPSHOT"
-
           echo "📦 Próxima versión si se mergea: $NEXT_VERSION"
           echo "NEXT_VERSION=$NEXT_VERSION" >> $GITHUB_ENV
+
+      - name: Actualizar pom.xml con la nueva versión
+        if: env.NEXT_VERSION
+        run: |
+          sed -i 's|<revision>.*</revision>|<revision>${{ env.NEXT_VERSION }}</revision>|' pom.xml
+
+      - name: Hacer commit de la nueva versión
+        if: env.NEXT_VERSION
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions@github.com"
+          git commit -am "chore: bump version to ${{ env.NEXT_VERSION }} [auto]" || echo "Sin cambios"
+          git push origin HEAD
 
       - name: Comentar en la PR con la próxima versión
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          COMMENT="📦 Próxima versión a publicar : \`${{ env.NEXT_VERSION }}\`"
-          gh pr comment ${{ github.event.pull_request.number }} --body "$COMMENT"
+          gh pr comment ${{ github.event.pull_request.number }} \
+            --body "📦 Próxima versión a publicar : \`${{ env.NEXT_VERSION }}\`\n📝 Ya actualizada en el \`pom.xml\`"
