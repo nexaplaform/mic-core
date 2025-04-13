@@ -70,11 +70,17 @@ jobs:
           echo "   🚀 Próxima versión: $NEXT_VERSION"
           echo ""
 
-      - name: Comentar en la PR con la versión
+      - name: Comentar en la PR con autor y fecha
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="${{ env.NEXT_VERSION }}"
-          MESSAGE="📦 Próxima versión a publicar si se mergea: \`$VERSION\`"
-          echo "💬 Comentando en la PR: $MESSAGE"
+          AUTHOR=$(gh pr view ${{ github.event.pull_request.number }} --json author --jq '.author.login')
+          DATE=$(date -u +"%Y/%m/%d %H:%M UTC")
+
+          MESSAGE="👤 $AUTHOR \n📅 $DATE \n📦 Próxima versión a publicar si se mergea: \`$VERSION\`"
+
+          echo "💬 Comentario generado:"
+          echo "$MESSAGE"
+
           gh pr comment ${{ github.event.pull_request.number }} --body "$MESSAGE"
