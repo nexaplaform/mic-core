@@ -1,73 +1,80 @@
-name: SNAPSHOT - Develop
+name: Preview SNAPSHOT version
 
 on:
-  push:
+  pull_request:
     branches: [ "develop" ]
+    types: [opened, edited, labeled, unlabeled, synchronize]
 
 permissions:
-  contents: write
-  packages: write
+  contents: read
+  pull-requests: write
 
 jobs:
-  publish-snapshot:
+  preview-version:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout código
+      - name: Checkout
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.ref }}
 
-      - name: Configurar Java 21
-        uses: actions/setup-java@v3
-        with:
-          java-version: '21'
-          distribution: 'temurin'
-
-      - name: Configurar remote con token
-        run: git remote set-url origin https://x-access-token:${{ secrets.GH_PAT }}@github.com/${{ github.repository }}.git
-
-      - name: Crear settings.xml para Maven
-        run: |
-          mkdir -p ~/.m2
-          cat > ~/.m2/settings.xml <<EOF
-          <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0">
-            <servers>
-              <server>
-                <id>github</id>
-                <username>github</username>
-                <password>${{ secrets.GITHUB_TOKEN }}</password>
-              </server>
-            </servers>
-          </settings>
-          EOF
-
-      - name: Leer versión desde pom.xml
+      - name: Leer versión actual desde pom.xml
         id: read_version
         run: |
-          REVISION=$(grep -m1 '<revision>' pom.xml | sed -E 's/.*<revision>(.*)<\/revision>.*/\1/')
-          echo "📦 Versión encontrada en pom.xml: $REVISION"
-          echo "SNAPSHOT_VERSION=$REVISION" >> $GITHUB_ENV
+          VERSION=$(grep -m1 '<revision>' pom.xml | sed -E 's/.*<revision>(.*)<\/revision>.*/\1/')
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "🔍 Versión actual en pom.xml: $VERSION"
 
-      - name: Verificar si ya existe una release publicada
-        id: check_release
+      - name: Detectar label relevante (si existe)
+        id: detect_label
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          SNAPSHOT_VERSION="${{ env.SNAPSHOT_VERSION }}"
-          RELEASE_VERSION="${SNAPSHOT_VERSION%-SNAPSHOT}"
+          LABEL=$(gh pr view ${{ github.event.pull_request.number }} --json labels --jq '.labels[].name' | grep -E 'bugfix|fix|hotfix|feature' | head -n 1 || true)
+          echo "LABEL=$LABEL" >> $GITHUB_ENV
 
-          echo "🔍 Verificando si existe una release para la versión: $RELEASE_VERSION..."
-
-          if gh release view "v$RELEASE_VERSION" --json tagName >/dev/null 2>&1; then
-            echo "⚠️ Ya existe una release publicada con la versión $RELEASE_VERSION"
-            echo "::error ::❌ Publicación cancelada: ya existe la release v$RELEASE_VERSION"
-            exit 1
+          if [ -z "$LABEL" ]; then
+            echo "ℹ️ No se detectó ninguna label relevante. Se usará la versión actual del pom.xml."
           else
-            echo "✅ No hay release publicada para $RELEASE_VERSION, se procederá con el SNAPSHOT."
+            echo "🔖 Label detectada: $LABEL"
           fi
 
-      - name: Publicar SNAPSHOT
-        run: mvn deploy -B -Drevision=${{ env.SNAPSHOT_VERSION }} -s ~/.m2/settings.xml
+      - name: Calcular próxima versión (si aplica)
+        id: calc_version
+        run: |
+          BASE="${{ env.VERSION }}"
+          BASE_CLEAN="${BASE%-SNAPSHOT}"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE_CLEAN"
+          LABEL="${{ env.LABEL }}"
+
+          if [[ "$LABEL" == "feature" ]]; then
+            MINOR=$((MINOR + 1))
+          elif [[ "$LABEL" =~ ^(bugfix|fix|hotfix)$ ]]; then
+            PATCH=$((PATCH + 1))
+          fi
+
+          if [[ -z "$LABEL" ]]; then
+            NEXT_VERSION="$BASE"
+          else
+            NEXT_VERSION="$MAJOR.$MINOR.$PATCH-SNAPSHOT"
+          fi
+
+          echo "NEXT_VERSION=$NEXT_VERSION" >> $GITHUB_ENV
+
+          echo ""
+          echo "🔮✨ Previsualización de la versión que se aplicará si se mergea:"
+          echo "   📦 Versión actual:  $BASE"
+          echo "   🔖 Label:           ${LABEL:-ninguna}"
+          echo "   🚀 Próxima versión: $NEXT_VERSION"
+          echo ""
+
+      - name: Comentar en la PR con la versión
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ env.NEXT_VERSION }}"
+          MESSAGE="📦 Próxima versión a publicar si se mergea: \`$VERSION\`"
+          echo "💬 Comentando en la PR: $MESSAGE"
+          gh pr comment ${{ github.event.pull_request.number }} --body "$MESSAGE"
