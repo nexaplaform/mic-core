@@ -27,7 +27,7 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "🔍 Versión actual en pom.xml: $VERSION"
 
-      - name: Detectar label relevante (si existe)
+      - name: Detectar etiqueta relevante (si existe)
         id: detect_label
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -36,12 +36,12 @@ jobs:
           echo "LABEL=$LABEL" >> $GITHUB_ENV
 
           if [ -z "$LABEL" ]; then
-            echo "ℹ️ No se detectó ninguna label relevante. Se usará la versión actual del pom.xml."
+            echo "ℹ️ No se detectó ninguna etiqueta relevante. Se usará la versión actual del pom.xml."
           else
-            echo "🔖 Label detectada: $LABEL"
+            echo "🔖 Etiqueta detectada: $LABEL"
           fi
 
-      - name: Calcular próxima versión (basada en label o pom.xml)
+      - name: Calcular próxima versión (basada en etiqueta o pom.xml)
         id: calc_version
         run: |
           BASE="${{ env.VERSION }}"
@@ -66,21 +66,24 @@ jobs:
           echo ""
           echo "🔮✨ Previsualización de la versión que se aplicará si se mergea:"
           echo "   📦 Versión actual:  $BASE"
-          echo "   🔖 Label:           ${LABEL:-ninguna}"
+          echo "   🔖 Etiqueta:        ${LABEL:-ninguna}"
           echo "   🚀 Próxima versión: $NEXT_VERSION"
           echo ""
 
-      - name: Comentar en la PR con autor y fecha
+            - name: Comentar en la PR con autor y fecha
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          VERSION="${{ env.NEXT_VERSION }}"
-          AUTHOR=$(gh pr view ${{ github.event.pull_request.number }} --json author --jq '.author.login')
-          DATE=$(date -u +"%Y/%m/%d %H:%M UTC")
+          run: |
+            VERSION="${{ env.NEXT_VERSION }}"
+            AUTHOR=$(gh pr view ${{ github.event.pull_request.number }} --json author --jq '.author.login')
+            DATE=$(date -u +"%Y/%m/%d %H:%M UTC")
+  
+            echo "👤 $AUTHOR" > comment.txt
+            echo "📅 $DATE" >> comment.txt
+            echo "📦 Próxima versión a publicar si se mergea: \`$VERSION\`" >> comment.txt
+  
+            echo "💬 Comentario generado:"
+            cat comment.txt
+  
+            gh pr comment ${{ github.event.pull_request.number }} --body-file comment.txt
 
-          MESSAGE="👤 $AUTHOR \n📅 $DATE \n📦 Próxima versión a publicar si se mergea: \`$VERSION\`"
-
-          echo "💬 Comentario generado:"
-          echo "$MESSAGE"
-
-          gh pr comment ${{ github.event.pull_request.number }} --body "$MESSAGE"
