@@ -74,4 +74,5 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh pr comment ${{ github.event.pull_request.number }} \
-            --body "📦 **Versión generada:** \`${{ env.NEXT_VERSION }}\`"
+            --body "📦 Próxima versión a publicar si se mergea: \`${{ env.NEXT_VERSION }}\`"
+      
