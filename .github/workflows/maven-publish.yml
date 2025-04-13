@@ -103,7 +103,9 @@ jobs:
         if: github.ref == 'refs/heads/main'
         run: |
           git fetch --tags
-          SNAPSHOT_BASE=${{ env.SNAPSHOT_VERSION%-SNAPSHOT }}
+          SNAPSHOT_VERSION="${{ env.SNAPSHOT_VERSION }}"
+          SNAPSHOT_BASE="${SNAPSHOT_VERSION%-SNAPSHOT}"
+
           if git rev-parse "v$SNAPSHOT_BASE" >/dev/null 2>&1; then
             echo "Tag v$SNAPSHOT_BASE ya existe."
           else
