@@ -34,7 +34,12 @@ jobs:
         run: |
           LABEL=$(gh pr view ${{ github.event.pull_request.number }} --json labels --jq '.labels[].name' | grep -E 'bugfix|fix|hotfix|feature' | head -n 1 || true)
           echo "LABEL=$LABEL" >> $GITHUB_ENV
-          echo "🔖 Label detectada: $LABEL"
+
+          if [ -z "$LABEL" ]; then
+            echo "ℹ️ No se detectó ninguna label relevante (bugfix, fix, hotfix, feature)."
+          else
+            echo "🔖 Label detectada: $LABEL"
+          fi
 
       - name: Calcular nueva versión si aplica
         if: env.LABEL != ''
@@ -55,7 +60,13 @@ jobs:
 
           NEXT_VERSION="$MAJOR.$MINOR.$PATCH-SNAPSHOT"
           echo "NEXT_VERSION=$NEXT_VERSION" >> $GITHUB_ENV
-          echo "📦 Versión que se aplicará al hacer merge: $NEXT_VERSION"
+
+          echo "🔮✨ Previsualización de la próxima versión:"
+          echo ""
+          echo "   📦 Versión actual:     $BASE"
+          echo "   🔖 Label detectada:    ${{ env.LABEL }}"
+          echo "   🚀 Próxima versión:    $NEXT_VERSION"
+          echo ""
 
       - name: Comentar en la PR con la próxima versión
         if: env.LABEL != '' && env.NEXT_VERSION != ''
@@ -63,4 +74,4 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh pr comment ${{ github.event.pull_request.number }} \
-            --body "📦 **Versión que se aplicará si se mergea:** \`${{ env.NEXT_VERSION }}\`"
+            --body "📦 **Versión generada:** \`${{ env.NEXT_VERSION }}\`"
