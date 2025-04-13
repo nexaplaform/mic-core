@@ -43,7 +43,7 @@ jobs:
           </settings>
           EOF
 
-      - name: Calcular versión y crear tag si no existe (solo en develop)
+      - name: Calcular versión
         id: versioning
         run: |
           git fetch --tags
@@ -63,33 +63,42 @@ jobs:
           echo "RELEASE_VERSION=$RELEASE_VERSION" >> $GITHUB_ENV
           echo "SNAPSHOT_VERSION=$SNAPSHOT_VERSION" >> $GITHUB_ENV
 
-          # Crear el tag solo en develop
-          if [[ "${GITHUB_REF##*/}" == "develop" ]]; then
-            if git rev-parse "v$RELEASE_VERSION" >/dev/null 2>&1; then
-              echo "Tag v$RELEASE_VERSION ya existe."
-            else
-              git config user.name "github-actions[bot]"
-              git config user.email "github-actions@github.com"
-              git tag "v$RELEASE_VERSION"
-              git push origin "v$RELEASE_VERSION"
-            fi
+      - name: Crear tag inicial en develop (solo si no existe)
+        if: github.ref == 'refs/heads/develop'
+        run: |
+          if git rev-parse "v${{ env.RELEASE_VERSION }}" >/dev/null 2>&1; then
+            echo "Tag v${{ env.RELEASE_VERSION }} ya existe."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions@github.com"
+            git tag "v${{ env.RELEASE_VERSION }}"
+            git push origin "v${{ env.RELEASE_VERSION }}"
           fi
 
-      # Publicar SNAPSHOT en develop
       - name: Publicar SNAPSHOT (develop)
         if: github.ref == 'refs/heads/develop'
         run: mvn deploy -B -Drevision=${{ env.SNAPSHOT_VERSION }} -s ~/.m2/settings.xml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Publicar release en main
       - name: Publicar release (main)
         if: github.ref == 'refs/heads/main'
         run: mvn deploy -B -Drevision=${{ env.RELEASE_VERSION }} -s ~/.m2/settings.xml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Crear PR de sincronización a develop (sin cambiar versión en main)
+      - name: Crear tag de release (main)
+        if: github.ref == 'refs/heads/main'
+        run: |
+          if git rev-parse "v${{ env.RELEASE_VERSION }}" >/dev/null 2>&1; then
+            echo "Tag v${{ env.RELEASE_VERSION }} ya existe."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions@github.com"
+            git tag "v${{ env.RELEASE_VERSION }}"
+            git push origin "v${{ env.RELEASE_VERSION }}"
+          fi
+
       - name: Crear Pull Request a develop (main)
         if: github.ref == 'refs/heads/main'
         env:
@@ -99,11 +108,11 @@ jobs:
           NEXT_PATCH=$((PATCH + 1))
           NEXT_SNAPSHOT="$MAJOR.$MINOR.$NEXT_PATCH-SNAPSHOT"
 
-          # Clonar develop, hacer cambio y push a una rama temporal
           git fetch origin develop
           git checkout -b sync-develop origin/develop
 
           sed -i 's/<revision>.*<\/revision>/<revision>'$NEXT_SNAPSHOT'<\/revision>/' pom.xml
+
           git config user.name "github-actions[bot]"
           git config user.email "github-actions@github.com"
           git commit -am "chore: Bump version to $NEXT_SNAPSHOT [skip ci]"
