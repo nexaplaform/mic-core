@@ -65,6 +65,25 @@ jobs:
           SNAPSHOT_VERSION="$MAJOR.$MINOR.$PATCH-SNAPSHOT"
           echo "SNAPSHOT_VERSION=$SNAPSHOT_VERSION" >> $GITHUB_ENV
 
+      - name: Verificar si ya existe una release publicada
+        id: check_release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          SNAPSHOT_VERSION="${{ env.SNAPSHOT_VERSION }}"
+          RELEASE_VERSION="${SNAPSHOT_VERSION%-SNAPSHOT}"
+
+          echo "Verificando si existe una release con la versión: $RELEASE_VERSION..."
+
+          if gh release view "v$RELEASE_VERSION" --json tagName >/dev/null 2>&1; then
+            echo "⚠️ Ya existe una release publicada con la versión $RELEASE_VERSION"
+            echo "Esta versión SNAPSHOT ya no puede ser publicada." 
+            echo "::error ::❌ Publicación cancelada: ya existe la release v$RELEASE_VERSION"
+            exit 1
+          else
+            echo "✅ No hay release publicada para $RELEASE_VERSION, se procederá con el SNAPSHOT."
+          fi
+
       - name: Publicar SNAPSHOT
         run: mvn deploy -B -Drevision=${{ env.SNAPSHOT_VERSION }} -s ~/.m2/settings.xml
         env:
