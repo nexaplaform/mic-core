@@ -1,16 +1,15 @@
-name: Release
+name: SNAPSHOT - Develop
 
 on:
   push:
-    branches: [ "main", "develop" ]
+    branches: [ "develop" ]
 
 permissions:
   contents: write
   packages: write
-  pull-requests: write
 
 jobs:
-  release:
+  publish-snapshot:
     runs-on: ubuntu-latest
 
     steps:
@@ -43,93 +42,30 @@ jobs:
           </settings>
           EOF
 
-      - name: Calcular versiones
+      - name: Calcular versión y crear primer tag si no existe
         id: versioning
         run: |
           git fetch --tags
+
           latestTag=$(git tag --sort=-v:refname | grep '^v' | head -n 1)
 
           if [ -z "$latestTag" ]; then
-            baseVersion="0.0.0"
-          else
-            baseVersion="${latestTag#v}"
-          fi
-
-          IFS='.' read -r MAJOR MINOR PATCH <<< "$baseVersion"
-          NEXT_RELEASE="$MAJOR.$MINOR.$((PATCH + 1))"
-          NEXT_SNAPSHOT="$MAJOR.$MINOR.$((PATCH + 2))-SNAPSHOT"
-
-          echo "RELEASE_VERSION=$NEXT_RELEASE" >> $GITHUB_ENV
-          echo "SNAPSHOT_VERSION=$NEXT_SNAPSHOT" >> $GITHUB_ENV
-
-      - name: Crear primer tag si no existe (solo en develop)
-        if: github.ref == 'refs/heads/develop'
-        run: |
-          git fetch --tags
-          tagCount=$(git tag | wc -l)
-          if [ "$tagCount" -eq 0 ]; then
+            echo "No hay tags, se creará v0.0.1"
+            VERSION="0.0.1"
             git config user.name "github-actions[bot]"
             git config user.email "github-actions@github.com"
-            git tag "v${{ env.RELEASE_VERSION }}"
-            git push origin "v${{ env.RELEASE_VERSION }}"
+            git tag "v$VERSION"
+            git push origin "v$VERSION"
+          else
+            VERSION="${latestTag#v}"
+            echo "Ya existe tag $latestTag"
           fi
 
-      - name: Publicar SNAPSHOT (develop)
-        if: github.ref == 'refs/heads/develop'
-        run: mvn deploy -B -Drevision=${{ env.RELEASE_VERSION }}-SNAPSHOT -s ~/.m2/settings.xml
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+          SNAPSHOT_VERSION="$MAJOR.$MINOR.$PATCH-SNAPSHOT"
+          echo "SNAPSHOT_VERSION=$SNAPSHOT_VERSION" >> $GITHUB_ENV
+
+      - name: Publicar SNAPSHOT
+        run: mvn deploy -B -Drevision=${{ env.SNAPSHOT_VERSION }} -s ~/.m2/settings.xml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Publicar release (main)
-        if: github.ref == 'refs/heads/main'
-        run: mvn deploy -B -Drevision=${{ env.RELEASE_VERSION }} -s ~/.m2/settings.xml
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Crear tag de release si no existe (main)
-        if: github.ref == 'refs/heads/main'
-        run: |
-          git fetch --tags
-          if git rev-parse "v${{ env.RELEASE_VERSION }}" >/dev/null 2>&1; then
-            echo "Tag v${{ env.RELEASE_VERSION }} ya existe."
-          else
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions@github.com"
-            git tag "v${{ env.RELEASE_VERSION }}"
-            git push origin "v${{ env.RELEASE_VERSION }}"
-          fi
-
-      - name: Crear tag para la siguiente versión SNAPSHOT (main)
-        if: github.ref == 'refs/heads/main'
-        run: |
-          git fetch --tags
-          SNAPSHOT_VERSION="${{ env.SNAPSHOT_VERSION }}"
-          SNAPSHOT_BASE="${SNAPSHOT_VERSION%-SNAPSHOT}"
-
-          if git rev-parse "v$SNAPSHOT_BASE" >/dev/null 2>&1; then
-            echo "Tag v$SNAPSHOT_BASE ya existe."
-          else
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions@github.com"
-            git tag "v$SNAPSHOT_BASE"
-            git push origin "v$SNAPSHOT_BASE"
-          fi
-
-      - name: Crear Pull Request a develop (main)
-        if: github.ref == 'refs/heads/main'
-        env:
-          GH_TOKEN: ${{ secrets.GH_PAT }}
-        run: |
-          git fetch origin develop
-          git checkout origin/develop -b sync-develop || git checkout sync-develop
-
-          sed -i 's/<revision>.*<\/revision>/<revision>${{ env.SNAPSHOT_VERSION }}<\/revision>/' pom.xml
-
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions@github.com"
-          git commit -am "chore: Bump version to ${{ env.SNAPSHOT_VERSION }} [skip ci]" || echo "Sin cambios"
-          git push -f origin sync-develop
-
-          gh pr create -B develop -H sync-develop \
-            --title "chore: Sync version ${{ env.SNAPSHOT_VERSION }} to develop" \
-            --body "Actualización automática de versión a \`${{ env.SNAPSHOT_VERSION }}\` tras release."
