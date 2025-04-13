@@ -27,7 +27,7 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "🔍 Versión actual en pom.xml: $VERSION"
 
-      - name: Detectar si hay label que modifica versión
+      - name: Detectar label relevante (si existe)
         id: detect_label
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -36,43 +36,45 @@ jobs:
           echo "LABEL=$LABEL" >> $GITHUB_ENV
 
           if [ -z "$LABEL" ]; then
-            echo "ℹ️ No se detectó ninguna label relevante (bugfix, fix, hotfix, feature)."
+            echo "ℹ️ No se detectó ninguna label relevante. Se usará la versión actual del pom.xml."
           else
             echo "🔖 Label detectada: $LABEL"
           fi
 
-      - name: Calcular nueva versión si aplica
-        if: env.LABEL != ''
+      - name: Calcular próxima versión (si aplica)
         id: calc_version
         run: |
           BASE="${{ env.VERSION }}"
           BASE_CLEAN="${BASE%-SNAPSHOT}"
           IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE_CLEAN"
+          LABEL="${{ env.LABEL }}"
 
-          case "${{ env.LABEL }}" in
-            bugfix|fix|hotfix)
-              PATCH=$((PATCH + 1))
-              ;;
-            feature)
-              MINOR=$((MINOR + 1))
-              ;;
-          esac
+          if [[ "$LABEL" == "feature" ]]; then
+            MINOR=$((MINOR + 1))
+          elif [[ "$LABEL" =~ ^(bugfix|fix|hotfix)$ ]]; then
+            PATCH=$((PATCH + 1))
+          fi
 
-          NEXT_VERSION="$MAJOR.$MINOR.$PATCH-SNAPSHOT"
+          if [[ -z "$LABEL" ]]; then
+            NEXT_VERSION="$BASE"
+          else
+            NEXT_VERSION="$MAJOR.$MINOR.$PATCH-SNAPSHOT"
+          fi
+
           echo "NEXT_VERSION=$NEXT_VERSION" >> $GITHUB_ENV
 
-          echo "🔮✨ Previsualización de la próxima versión:"
           echo ""
-          echo "   📦 Versión actual:     $BASE"
-          echo "   🔖 Label detectada:    ${{ env.LABEL }}"
-          echo "   🚀 Próxima versión:    $NEXT_VERSION"
+          echo "🔮✨ Previsualización de la versión que se aplicará si se mergea:"
+          echo "   📦 Versión actual:  $BASE"
+          echo "   🔖 Label:           ${LABEL:-ninguna}"
+          echo "   🚀 Próxima versión: $NEXT_VERSION"
           echo ""
 
-      - name: Comentar en la PR con la próxima versión
-        if: env.LABEL != '' && env.NEXT_VERSION != ''
+      - name: Comentar en la PR con la versión
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh pr comment ${{ github.event.pull_request.number }} \
-            --body "📦 Próxima versión a publicar si se mergea: \`${{ env.NEXT_VERSION }}\`"
-      
+          VERSION="${{ env.NEXT_VERSION }}"
+          MESSAGE="📦 Próxima versión a publicar si se mergea: \`$VERSION\`"
+          echo "💬 Comentando en la PR: $MESSAGE"
+          gh pr comment ${{ github.event.pull_request.number }} --body "$MESSAGE"
