@@ -40,7 +40,7 @@ jobs:
           </settings>
           EOF
 
-      - name: Leer versión actual desde pom.xml
+      - name: Leer versión actual
         id: read_version
         run: |
           VERSION=$(grep -m1 '<revision>' pom.xml | sed -E 's/.*<revision>(.*)<\/revision>.*/\1/')
@@ -62,7 +62,7 @@ jobs:
           LABEL=$(gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name' | grep -E 'bugfix|fix|hotfix|feature' | head -n 1 || true)
           echo "LABEL=${LABEL:-none}" >> $GITHUB_ENV
 
-      - name: Calcular nueva versión y actualizar pom.xml (si aplica)
+      - name: Calcular nueva versión y actualizar
         if: env.LABEL != 'none'
         run: |
           BASE="${{ env.VERSION }}"

@@ -40,7 +40,7 @@ jobs:
           </settings>
           EOF
 
-      - name: Leer versión actual del pom.xml
+      - name: Leer versión actual
         id: read_version
         run: |
           VERSION=$(grep -m1 '<revision>' pom.xml | sed -E 's/.*<revision>(.*)<\/revision>.*/\1/')
