@@ -46,16 +46,19 @@ jobs:
           VERSION=$(grep -m1 '<revision>' pom.xml | sed -E 's/.*<revision>(.*)<\/revision>.*/\1/')
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
-      - name: Detectar label del último PR mergeado
+      - name: Detectar label del PR que causó el merge
         id: detect_label
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          PR_NUMBER=$(gh pr list --state merged --base develop --limit 1 --json number --jq '.[0].number' || echo "")
+          PR_NUMBER=$(git log -1 --pretty=%B | grep -oE '#[0-9]+' | tr -d '#')
+
           if [ -z "$PR_NUMBER" ]; then
             echo "LABEL=none" >> $GITHUB_ENV
             exit 0
           fi
+
+          echo "🔍 PR detectado: #$PR_NUMBER"
           LABEL=$(gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name' | grep -E 'bugfix|fix|hotfix|feature' | head -n 1 || true)
           echo "LABEL=${LABEL:-none}" >> $GITHUB_ENV
 
