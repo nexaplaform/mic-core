@@ -40,12 +40,21 @@ jobs:
           </settings>
           EOF
 
-      - name: Leer versión desde pom.xml
+      - name: Leer versión actual del pom.xml
         id: read_version
         run: |
           VERSION=$(grep -m1 '<revision>' pom.xml | sed -E 's/.*<revision>(.*)<\/revision>.*/\1/')
-          echo "RELEASE_VERSION=$VERSION" >> $GITHUB_ENV
-          echo "🔖 Versión detectada para release: $VERSION"
+          VERSION_NO_SNAPSHOT="${VERSION%-SNAPSHOT}"
+          echo "RELEASE_VERSION=$VERSION_NO_SNAPSHOT" >> $GITHUB_ENV
+          echo "🔖 Versión base: $VERSION → limpiada a: $VERSION_NO_SNAPSHOT"
+
+      - name: Actualizar pom.xml a versión release (sin -SNAPSHOT)
+        run: |
+          sed -i "s|<revision>.*</revision>|<revision>${{ env.RELEASE_VERSION }}</revision>|" pom.xml
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions@github.com"
+          git commit -am "chore: prepare release v${{ env.RELEASE_VERSION }}"
+          git push origin main
 
       - name: Publicar release
         run: |
@@ -89,4 +98,4 @@ jobs:
 
           gh pr create -B develop -H sync-develop \
             --title "chore: bump version to $NEXT_VERSION" \
-            --body "🔁 Sincronización automática desde release v${{ env.RELEASE_VERSION }} con la próxima versión \`$NEXT_VERSION\` para continuar el ciclo en develop."
+            --body "🔁 Sincronización automática desde release v${{ env.RELEASE_VERSION }} con la próxima versión \`$NEXT_VERSION\` para continuar en develop."
