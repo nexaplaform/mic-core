@@ -1,0 +1,94 @@
+name: Publish SNAPSHOT - develop
+
+on:
+  push:
+    branches: [ "develop" ]
+
+permissions:
+  contents: write
+  pull-requests: read
+  packages: write
+
+jobs:
+  publish-snapshot:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Configurar Java
+        uses: actions/setup-java@v3
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Crear settings.xml para Maven
+        run: |
+          mkdir -p ~/.m2
+          cat > ~/.m2/settings.xml <<EOF
+          <settings>
+            <servers>
+              <server>
+                <id>github</id>
+                <username>github</username>
+                <password>${{ secrets.GITHUB_TOKEN }}</password>
+              </server>
+            </servers>
+          </settings>
+          EOF
+
+      - name: Leer versión actual desde pom.xml
+        id: read_version
+        run: |
+          VERSION=$(grep -m1 '<revision>' pom.xml | sed -E 's/.*<revision>(.*)<\/revision>.*/\1/')
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Detectar label del PR que causó el merge
+        id: detect_label
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUMBER=$(git log -1 --pretty=%B | grep -oE '#[0-9]+' | tr -d '#')
+
+          if [ -z "$PR_NUMBER" ]; then
+            echo "LABEL=none" >> $GITHUB_ENV
+            exit 0
+          fi
+
+          echo "🔍 PR detectado: #$PR_NUMBER"
+          LABEL=$(gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name' | grep -E 'bugfix|fix|hotfix|feature' | head -n 1 || true)
+          echo "LABEL=${LABEL:-none}" >> $GITHUB_ENV
+
+      - name: Calcular nueva versión y actualizar pom.xml (si aplica)
+        if: env.LABEL != 'none'
+        run: |
+          BASE="${{ env.VERSION }}"
+          BASE_CLEAN="${BASE%-SNAPSHOT}"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE_CLEAN"
+          LABEL="${{ env.LABEL }}"
+
+          if [[ "$LABEL" == "feature" ]]; then
+            MINOR=$((MINOR + 1))
+          elif [[ "$LABEL" =~ ^(bugfix|fix|hotfix)$ ]]; then
+            PATCH=$((PATCH + 1))
+          fi
+
+          NEW_VERSION="$MAJOR.$MINOR.$PATCH-SNAPSHOT"
+          echo "NEXT_VERSION=$NEW_VERSION" >> $GITHUB_ENV
+
+          sed -i "s|<revision>.*</revision>|<revision>$NEW_VERSION</revision>|" pom.xml
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions@github.com"
+          git commit -am "chore: bump version to $NEW_VERSION [auto]" || echo "No changes"
+          git push origin develop
+
+      - name: Publicar SNAPSHOT
+        run: |
+          VERSION="${{ env.NEXT_VERSION || env.VERSION }}"
+          mvn deploy -B -Drevision=$VERSION -s ~/.m2/settings.xml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

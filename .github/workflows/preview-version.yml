@@ -1,0 +1,88 @@
+name: Preview SNAPSHOT version
+
+on:
+  pull_request:
+    branches: [ "develop" ]
+    types: [opened, edited, labeled, unlabeled, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  preview-version:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.ref }}
+
+      - name: Leer versión actual desde pom.xml
+        id: read_version
+        run: |
+          VERSION=$(grep -m1 '<revision>' pom.xml | sed -E 's/.*<revision>(.*)<\/revision>.*/\1/')
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "🔍 Versión actual en pom.xml: $VERSION"
+
+      - name: Detectar etiqueta relevante (si existe)
+        id: detect_label
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          LABEL=$(gh pr view ${{ github.event.pull_request.number }} --json labels --jq '.labels[].name' | grep -E 'bugfix|fix|hotfix|feature' | head -n 1 || true)
+          echo "LABEL=$LABEL" >> $GITHUB_ENV
+
+          if [ -z "$LABEL" ]; then
+            echo "ℹ️ No se detectó ninguna etiqueta relevante. Se usará la versión actual del pom.xml."
+          else
+            echo "🔖 Etiqueta detectada: $LABEL"
+          fi
+
+      - name: Calcular próxima versión (basada en etiqueta o pom.xml)
+        id: calc_version
+        run: |
+          BASE="${{ env.VERSION }}"
+          BASE_CLEAN="${BASE%-SNAPSHOT}"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE_CLEAN"
+          LABEL="${{ env.LABEL }}"
+
+          if [[ "$LABEL" == "feature" ]]; then
+            MINOR=$((MINOR + 1))
+          elif [[ "$LABEL" =~ ^(bugfix|fix|hotfix)$ ]]; then
+            PATCH=$((PATCH + 1))
+          fi
+
+          if [[ -z "$LABEL" ]]; then
+            NEXT_VERSION="$BASE"
+          else
+            NEXT_VERSION="$MAJOR.$MINOR.$PATCH-SNAPSHOT"
+          fi
+
+          echo "NEXT_VERSION=$NEXT_VERSION" >> $GITHUB_ENV
+
+          echo ""
+          echo "🔮✨ Previsualización de la versión que se aplicará si se mergea:"
+          echo "   📦 Versión actual:  $BASE"
+          echo "   🔖 Etiqueta:        ${LABEL:-ninguna}"
+          echo "   🚀 Próxima versión: $NEXT_VERSION"
+          echo ""
+
+      - name: Comentar en la PR con autor y fecha
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ env.NEXT_VERSION }}"
+          AUTHOR=$(gh pr view ${{ github.event.pull_request.number }} --json author --jq '.author.login')
+          DATE=$(date -u +"%Y/%m/%d %H:%M UTC")
+
+          echo "👤 $AUTHOR" > comment.txt
+          echo "📅 $DATE" >> comment.txt
+          echo "📦 Próxima versión a publicar si se mergea: \`$VERSION\`" >> comment.txt
+
+          echo "💬 Comentario generado:"
+          cat comment.txt
+
+          gh pr comment ${{ github.event.pull_request.number }} --body-file comment.txt
