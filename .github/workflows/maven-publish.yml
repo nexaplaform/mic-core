@@ -44,12 +44,12 @@ jobs:
 
           NEXT_VERSION="$MAJOR.$MINOR.$PATCH-SNAPSHOT"
 
-          echo "🔮 Próxima versión si se mergea: $NEXT_VERSION"
+          echo "📦 Próxima versión si se mergea: $NEXT_VERSION"
           echo "NEXT_VERSION=$NEXT_VERSION" >> $GITHUB_ENV
 
       - name: Comentar en la PR con la próxima versión
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          COMMENT="🔮 Próxima versión que se aplicará al merge: \`${{ env.NEXT_VERSION }}\`"
+          COMMENT="📦 Próxima versión que se aplicará al merge: \`${{ env.NEXT_VERSION }}\`"
           gh pr comment ${{ github.event.pull_request.number }} --body "$COMMENT"
