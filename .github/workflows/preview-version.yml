@@ -20,14 +20,14 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.ref }}
 
-      - name: Leer versión actual desde pom.xml
+      - name: Obtener versión actual
         id: read_version
         run: |
           VERSION=$(grep -m1 '<revision>' pom.xml | sed -E 's/.*<revision>(.*)<\/revision>.*/\1/')
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "🔍 Versión actual en pom.xml: $VERSION"
 
-      - name: Detectar etiqueta relevante (si existe)
+      - name: Verificar si existe etiqueta de versión
         id: detect_label
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -41,7 +41,7 @@ jobs:
             echo "🔖 Etiqueta detectada: $LABEL"
           fi
 
-      - name: Calcular próxima versión (basada en etiqueta o pom.xml)
+      - name: Calcular próxima versión
         id: calc_version
         run: |
           BASE="${{ env.VERSION }}"
@@ -70,7 +70,7 @@ jobs:
           echo "   🚀 Próxima versión: $NEXT_VERSION"
           echo ""
 
-      - name: Comentar en la PR con autor y fecha
+      - name: Comentar en la PR con autor, fecha y versión
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
