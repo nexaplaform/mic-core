@@ -42,28 +42,12 @@ jobs:
           </settings>
           EOF
 
-      - name: Calcular versión y crear primer tag si no existe
-        id: versioning
+      - name: Leer versión desde pom.xml
+        id: read_version
         run: |
-          git fetch --tags
-
-          latestTag=$(git tag --sort=-v:refname | grep '^v' | head -n 1)
-
-          if [ -z "$latestTag" ]; then
-            echo "No hay tags, se creará v0.0.1"
-            VERSION="0.0.1"
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions@github.com"
-            git tag "v$VERSION"
-            git push origin "v$VERSION"
-          else
-            VERSION="${latestTag#v}"
-            echo "Ya existe tag $latestTag"
-          fi
-
-          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
-          SNAPSHOT_VERSION="$MAJOR.$MINOR.$PATCH-SNAPSHOT"
-          echo "SNAPSHOT_VERSION=$SNAPSHOT_VERSION" >> $GITHUB_ENV
+          REVISION=$(grep -m1 '<revision>' pom.xml | sed -E 's/.*<revision>(.*)<\/revision>.*/\1/')
+          echo "📦 Versión encontrada en pom.xml: $REVISION"
+          echo "SNAPSHOT_VERSION=$REVISION" >> $GITHUB_ENV
 
       - name: Verificar si ya existe una release publicada
         id: check_release
@@ -73,11 +57,10 @@ jobs:
           SNAPSHOT_VERSION="${{ env.SNAPSHOT_VERSION }}"
           RELEASE_VERSION="${SNAPSHOT_VERSION%-SNAPSHOT}"
 
-          echo "Verificando si existe una release con la versión: $RELEASE_VERSION..."
+          echo "🔍 Verificando si existe una release para la versión: $RELEASE_VERSION..."
 
           if gh release view "v$RELEASE_VERSION" --json tagName >/dev/null 2>&1; then
             echo "⚠️ Ya existe una release publicada con la versión $RELEASE_VERSION"
-            echo "Esta versión SNAPSHOT ya no puede ser publicada." 
             echo "::error ::❌ Publicación cancelada: ya existe la release v$RELEASE_VERSION"
             exit 1
           else
