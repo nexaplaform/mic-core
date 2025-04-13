@@ -120,3 +120,18 @@ jobs:
           mvn deploy -B -Drevision=$VERSION -s ~/.m2/settings.xml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Comentar en el PR la versión generada (opcional)
+        if: env.LABEL != 'none'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUMBER=$(gh pr list --state merged --base develop --limit 1 --json number --jq '.[0].number')
+          VERSION="${{ env.SNAPSHOT_VERSION }}"
+
+          if [ -n "$PR_NUMBER" ]; then
+            echo "📝 Agregando comentario al PR #$PR_NUMBER con la versión generada: $VERSION"
+            gh pr comment "$PR_NUMBER" --body ":bookmark_tabs: **Versión actualizada:** \`$VERSION\`"
+          else
+            echo "⚠️ No se encontró PR mergeado para comentar."
+          fi
