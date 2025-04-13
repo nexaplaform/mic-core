@@ -51,5 +51,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          COMMENT="📦 Próxima versión que se aplicará al merge: \`${{ env.NEXT_VERSION }}\`"
+          COMMENT="📦 Próxima versión a publicar : \`${{ env.NEXT_VERSION }}\`"
           gh pr comment ${{ github.event.pull_request.number }} --body "$COMMENT"
