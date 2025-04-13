@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout código
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
@@ -41,7 +41,7 @@ jobs:
             echo "🔖 Label detectada: $LABEL"
           fi
 
-      - name: Calcular próxima versión (si aplica)
+      - name: Calcular próxima versión (basada en label o pom.xml)
         id: calc_version
         run: |
           BASE="${{ env.VERSION }}"
