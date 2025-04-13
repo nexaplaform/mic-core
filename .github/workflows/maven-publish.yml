@@ -70,4 +70,4 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh pr comment ${{ github.event.pull_request.number }} \
-            --body "📦 Próxima versión a publicar : \`${{ env.NEXT_VERSION }}\`\n📝 Ya actualizada en el \`pom.xml\`"
+            --body "📦 Próxima versión a publicar : \`${{ env.NEXT_VERSION }}\` 📝 Ya actualizada."
