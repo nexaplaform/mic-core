@@ -43,7 +43,7 @@ jobs:
           </settings>
           EOF
 
-      - name: Calcular versión y crear tag si no existe
+      - name: Calcular versión y crear tag si no existe (solo en develop)
         id: versioning
         run: |
           git fetch --tags
@@ -89,27 +89,26 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Bump versión a siguiente SNAPSHOT en main
-      - name: Actualizar a siguiente SNAPSHOT (main)
-        if: github.ref == 'refs/heads/main'
-        run: |
-          IFS='.' read -r MAJOR MINOR PATCH <<< "${{ env.RELEASE_VERSION }}"
-          NEXT_PATCH=$((PATCH + 1))
-          NEXT_VERSION="$MAJOR.$MINOR.$NEXT_PATCH-SNAPSHOT"
-
-          sed -i 's/<revision>.*<\/revision>/<revision>'$NEXT_VERSION'<\/revision>/' pom.xml
-
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions@github.com"
-          git commit -am "chore: Bump version to $NEXT_VERSION [skip ci]"
-          git push origin main
-
-      # Crear PR de sincronización a develop
+      # Crear PR de sincronización a develop (sin cambiar versión en main)
       - name: Crear Pull Request a develop (main)
         if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
-          gh pr create -B develop -H main \
-            --title "chore: Sync version ${{ env.SNAPSHOT_VERSION }} to develop" \
-            --body "Actualización automática de versión a \`${{ env.SNAPSHOT_VERSION }}\` tras release."
+          IFS='.' read -r MAJOR MINOR PATCH <<< "${{ env.RELEASE_VERSION }}"
+          NEXT_PATCH=$((PATCH + 1))
+          NEXT_SNAPSHOT="$MAJOR.$MINOR.$NEXT_PATCH-SNAPSHOT"
+
+          # Clonar develop, hacer cambio y push a una rama temporal
+          git fetch origin develop
+          git checkout -b sync-develop origin/develop
+
+          sed -i 's/<revision>.*<\/revision>/<revision>'$NEXT_SNAPSHOT'<\/revision>/' pom.xml
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions@github.com"
+          git commit -am "chore: Bump version to $NEXT_SNAPSHOT [skip ci]"
+          git push origin sync-develop
+
+          gh pr create -B develop -H sync-develop \
+            --title "chore: Sync version $NEXT_SNAPSHOT to develop" \
+            --body "Actualización automática de versión a \`$NEXT_SNAPSHOT\` tras release."
