@@ -17,6 +17,11 @@ public class GenericException extends RuntimeException {
 
     public GenericException(){}
 
+    public GenericException(String code, String description){
+        this.code = code;
+        this.description = description;
+    }
+
     public GenericException(String code, String description, HttpStatus status){
         this.code = code;
         this.description = description;
