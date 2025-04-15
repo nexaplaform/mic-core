@@ -17,7 +17,7 @@
 
 	<properties>
 		<!-- Version del Artefacto-->
-		<revision>0.0.2-SNAPSHOT</revision>
+		<revision>0.0.1-SNAPSHOT</revision>
 
 		<!-- Version de java -->
 		<java.version>21</java.version>
