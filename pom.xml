@@ -5,7 +5,7 @@
 
 	<groupId>com.nexaplatform</groupId>
 	<artifactId>mic-core</artifactId>
-	<version>${revision}</version>
+	<version>0.0.1-SNAPSHOT</version>
 	<packaging>pom</packaging>
 
 	<name>mic-core</name>
@@ -46,7 +46,7 @@
 			<dependency>
 				<groupId>com.nexaplatform</groupId>
 				<artifactId>app-common</artifactId>
-				<version>${revision}</version>
+				<version>0.0.1-SNAPSHOT</version>
 			</dependency>
 		</dependencies>
 	</dependencyManagement>
