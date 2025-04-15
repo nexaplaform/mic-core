@@ -17,8 +17,9 @@
 	</modules>
 
 	<properties>
-		<java.version>21</java.version>
 		<revision>0.0.1-SNAPSHOT</revision>
+
+		<java.version>21</java.version>
 		<maven.compiler.source>21</maven.compiler.source>
 		<maven.compiler.target>21</maven.compiler.target>
 		<sonar.organization>nexaplaform</sonar.organization>
