@@ -37,6 +37,7 @@
 		<lombok.version>1.18.36</lombok.version>
 		<org.mapstruct.version>1.6.3</org.mapstruct.version>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
 	</properties>
 
 	<distributionManagement>
