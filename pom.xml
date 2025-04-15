@@ -42,6 +42,14 @@
 		</repository>
 	</distributionManagement>
 
+	<repositories>
+		<repository>
+			<id>github</id>
+			<name>GitHub Nexaplatform</name>
+			<url>https://maven.pkg.github.com/nexaplatform</url>
+		</repository>
+	</repositories>
+
 	<dependencyManagement>
 		<dependencies>
 			<dependency>
