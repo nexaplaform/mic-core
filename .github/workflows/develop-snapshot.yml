@@ -40,7 +40,7 @@ jobs:
           </settings>
           EOF
 
-      - name: Leer versión actual
+      - name: Leer versión actual desde pom.xml
         id: read_version
         run: |
           VERSION=$(grep -m1 '<revision>' pom.xml | sed -E 's/.*<revision>(.*)<\/revision>.*/\1/')
@@ -62,7 +62,7 @@ jobs:
           LABEL=$(gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name' | grep -E 'bugfix|fix|hotfix|feature' | head -n 1 || true)
           echo "LABEL=${LABEL:-none}" >> $GITHUB_ENV
 
-      - name: Calcular nueva versión y actualizar
+      - name: Calcular nueva versión y actualizar pom.xml (si aplica)
         if: env.LABEL != 'none'
         run: |
           BASE="${{ env.VERSION }}"
@@ -81,25 +81,9 @@ jobs:
 
           sed -i "s|<revision>.*</revision>|<revision>$NEW_VERSION</revision>|" pom.xml
 
-      - name: Sincronizar valor de <version> con <revision>
-        run: |
-          REVISION=$(grep -m1 '<revision>' pom.xml | sed -E 's/.*<revision>(.*)<\/revision>.*/\1/')
-          sed -i "s|<version>\${revision}</version>|<version>$REVISION</version>|" pom.xml
-
-      - name: Commit y push versión actualizada
-        run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions@github.com"
-          git pull --rebase origin develop
-          git commit -am "chore: bump version to ${REVISION:-${{ env.NEXT_VERSION }}} [auto]" || echo "No changes"
-          git push origin develop
-
-
-      - name: Commit y push versión actualizada
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions@github.com"
-          git commit -am "chore: bump version to ${REVISION:-${{ env.NEXT_VERSION }}} [auto]" || echo "No changes"
+          git commit -am "chore: bump version to $NEW_VERSION [auto]" || echo "No changes"
           git push origin develop
 
       - name: Publicar SNAPSHOT
