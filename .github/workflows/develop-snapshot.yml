@@ -90,6 +90,15 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions@github.com"
+          git pull --rebase origin develop
+          git commit -am "chore: bump version to ${REVISION:-${{ env.NEXT_VERSION }}} [auto]" || echo "No changes"
+          git push origin develop
+
+
+      - name: Commit y push versión actualizada
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions@github.com"
           git commit -am "chore: bump version to ${REVISION:-${{ env.NEXT_VERSION }}} [auto]" || echo "No changes"
           git push origin develop
 
