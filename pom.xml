@@ -34,7 +34,6 @@
 		</repository>
 	</distributionManagement>
 
-
 	<dependencyManagement>
 		<dependencies>
 			<dependency>

@@ -86,6 +86,11 @@ jobs:
           git commit -am "chore: bump version to $NEW_VERSION [auto]" || echo "No changes"
           git push origin develop
 
+      - name: Sustituir ${revision} por la versión real en pom.xml
+        run: |
+          VERSION="${{ env.NEXT_VERSION || env.VERSION }}"
+          sed -i "s|<version>\${revision}</version>|<version>$VERSION</version>|" pom.xml
+
       - name: Publicar SNAPSHOT
         run: |
           VERSION="${{ env.NEXT_VERSION || env.VERSION }}"
