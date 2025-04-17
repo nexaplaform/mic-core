@@ -16,7 +16,7 @@
 	</modules>
 
 	<properties>
-		<revision>0.0.1</revision>
+		<revision>0.0.2-SNAPSHOT</revision>
 		<java.version>21</java.version>
 		<sonar.organization>nexaplaform</sonar.organization>
 		<sonar.host.url>https://sonarcloud.io</sonar.host.url>
