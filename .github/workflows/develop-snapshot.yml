@@ -86,9 +86,18 @@ jobs:
           git commit -am "chore: bump version to $NEW_VERSION [auto]" || echo "No changes"
           git push origin develop
 
+      - name: Sustituir ${revision} en todos los pom.xml
+        run: |
+          VERSION="${{ env.NEXT_VERSION || env.VERSION }}"
+          find . -name "pom.xml" -exec sed -i "s|<version>\${revision}</version>|<version>$VERSION</version>|" {} +
+
       - name: Publicar SNAPSHOT
         run: |
           VERSION="${{ env.NEXT_VERSION || env.VERSION }}"
           mvn deploy -B -Drevision=$VERSION -s ~/.m2/settings.xml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Restaurar ${revision} en todos los pom.xml (opcional)
+        run: |
+          find . -name "pom.xml" -exec sed -i "s|<version>.*-SNAPSHOT</version>|<version>\${revision}</version>|" {} +
