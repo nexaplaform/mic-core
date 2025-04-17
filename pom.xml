@@ -46,7 +46,7 @@
 			<dependency>
 				<groupId>com.nexaplatform</groupId>
 				<artifactId>app-common</artifactId>
-				<version>0.0.1-SNAPSHOT</version>
+				<version>${revision}</version>
 			</dependency>
 		</dependencies>
 	</dependencyManagement>
